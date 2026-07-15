@@ -19,9 +19,9 @@ detected fracture.
 
 ## Scope, honestly
 
-Calibrated and verified on **three crystals**: `seq3941` (two clean) and
-`seq3942` (one fractured), both green-LUT frames. `tests/test_separation.py`
-pins that result.
+Calibrated and verified on **four crystals** across three frames: `seq3941` (two
+clean), `seq3942` (one fractured), `chip3_50x_hc_2` (one clean, carrying
+specular artifacts). `tests/test_separation.py` pins that result.
 
 It is **not** verified on the raw brightfield series (`Captured.jpg`), which is
 a different problem: material reads *darker* than background there rather than
@@ -75,14 +75,21 @@ constantly and the second essentially never. The size and elongation filters in
 The detection threshold can move over a 2x range without either frame changing
 verdict:
 
-| threshold mult | seq3941 (clean) | seq3942 (fractured) |
-|---|---|---|
-| 1.4 | 0 curves | 3 |
-| 1.8 (default) | 0 | 3 |
-| 3.0 | 0 | 2 |
+| threshold mult | seq3941 (clean) | seq3942 (fractured) | chip3 (clean, artifacts) |
+|---|---|---|---|
+| 1.4 | 0 curves | 4 | **1 -- false positive** |
+| 1.6 | 0 | 3 | 0 |
+| 1.8 (default) | 0 | 3 | 0 |
+| 2.2 | 0 | 3 | 0 |
+| 3.0 | 0 | 2 | 0 |
 
-That margin, not the default constant, is the reason to believe this. If it
-narrows on new data, the detector is riding on luck.
+The usable range is 1.6-3.0, and that margin -- not the default constant -- is
+the reason to believe any of this.
+
+Note what happened to it: on two frames the margin looked like 1.4-3.0. Adding a
+third frame that carries specular artifacts moved the lower bound up. Each new
+imaging condition has narrowed it, so treat the current bound as an upper
+estimate of how much slack there really is.
 
 ## Measured facts
 
@@ -123,6 +130,11 @@ Each of these cost real time and will bite again:
 - **A black top-hat is not a free win.** Added to catch dark fractures, it
   produced a false positive on a clean crystal and found nothing extra on the
   fractured one. Bright-only is deliberate; dark fractures are currently missed.
+- **Dust is bright, thin and elongated too.** A specular streak satisfies every
+  geometric test a fracture does, and chip3 was failed on one. Only the
+  brightness cap separates them: real fractures measure +5.4 to +6.9 over the
+  local median, that streak +19.1. A fracture is subtle topography in an
+  atomically thin sheet; a scatterer sitting on the gold is not.
 - **Check mask coverage in the overlay, not the pixel count.** Three crystals
   all came out near 130k px under `flatten_sigma=120`, which looked like
   reassuring agreement between template shapes. It was an artifact: the
@@ -135,6 +147,12 @@ Each of these cost real time and will bite again:
 - **Bright fractures only** (see above).
 - **Fragments, not networks.** It detects ~2 segments of a visibly larger
   network. Fine for pass/fail, useless as a quantitative fracture-length metric.
-- **Three crystals of ground truth.** Zero false positives on two clean crystals
-  is encouraging, not proof.
+- **Four crystals of ground truth.** Three clean, one fractured. Encouraging,
+  not proof -- and every frame added so far has found a new failure mode.
+- **The brightness cap is set against one artifact and three fractures.** A
+  genuinely bright fracture would be rejected by it.
+- **Crystals that touch are not separated.** The GDS is a compact tiling, so
+  neighbouring shapes are adjacent; on chip3 the mask bleeds into the
+  neighbour. Watershed was tried and does not cut it -- there is no gradient
+  ridge between them. Template registration is the real answer.
 - **Segmentation is approximate** and untested on frames with many shapes.

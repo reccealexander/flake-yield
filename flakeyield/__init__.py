@@ -1,5 +1,5 @@
-"""Yield inspection for gold-template-exfoliated 2D material."""
+"""Fracture inspection for gold-template-exfoliated 2D material."""
 
-from .inspect import Config, Inspection, inspect_image
+from .inspect import Config, CrystalResult, Inspection, inspect_image
 
-__all__ = ["Config", "Inspection", "inspect_image"]
+__all__ = ["Config", "CrystalResult", "Inspection", "inspect_image"]

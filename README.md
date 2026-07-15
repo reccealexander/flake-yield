@@ -94,6 +94,30 @@ boundaries include the crystal tips the threshold mask truncated, lifted it to
 information has arrived, the slack has shrunk.** The earlier figures were not
 wrong so much as measured against too little. Treat this as an upper bound.
 
+## The searched fraction
+
+The boundary margin is eroded away before looking for fractures, because the
+crystal's own edge is a bright line that reads as a defect. That erosion is not
+free -- it is crystal never inspected, and these slivers are narrow:
+
+| margin | verdicts | searched (seq3941) |
+|---|---|---|
+| 3 | **false positive** on a clean crystal | 92% |
+| 5 | correct | 87% |
+| 8 (default) | correct | 80% |
+| 10 | correct | 75% |
+| 15 (old) | correct | **64%** |
+
+15 was inherited from the threshold-mask era, where the boundary was fuzzy and
+the margin was compensating for it. SAM's boundary is crisp. At 15, **36% of
+seq3941's crystals were never examined -- including the sharp tips**, which are
+stress concentrators and therefore where cracks start. The worst possible place
+to be blind.
+
+A verdict is only ever "clean over the fraction we looked at". `Inspection`
+reports it; the overlay draws it (blue outlines the searched interior, which is
+deliberately *inside* the crystal boundary).
+
 ## Measured facts
 
 Re-measure before trusting any of these on a new batch.

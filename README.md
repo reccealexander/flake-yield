@@ -9,10 +9,10 @@ failure. Missing material at an edge is not a defect.
     python run.py '~/Downloads/seq*.jpg' --overlays out/ --csv out/yield.csv
 
     seq3941.jpg: 2/2 crystals pass
-        crystal 0: PASS  [130510 px, 0 fracture(s)]
-        crystal 1: PASS  [130157 px, 0 fracture(s)]
+        crystal 0: PASS  [171182 px, 0 fracture(s)]
+        crystal 1: PASS  [170679 px, 0 fracture(s)]
     seq3942.jpg: 0/1 crystals pass
-        crystal 0: FAIL  [130422 px, 2 fracture(s)]
+        crystal 0: FAIL  [272452 px, 3 fracture(s)]
 
 Always look at the overlay. Blue outlines what was searched; red marks a
 detected fracture.
@@ -77,19 +77,22 @@ verdict:
 
 | threshold mult | seq3941 (clean) | seq3942 (fractured) | chip3 (clean, artifacts) |
 |---|---|---|---|
-| 1.4 | 0 curves | 4 | **1 -- false positive** |
-| 1.6 | 0 | 3 | 0 |
-| 1.8 (default) | 0 | 3 | 0 |
-| 2.2 | 0 | 3 | 0 |
+| 1.6 | 0 curves | 3 | **1 -- false positive** |
+| 1.8 | 0 | 3 | 0 |
+| 2.2 (default) | 0 | 3 | 0 |
+| 2.6 | 0 | 2 | 0 |
 | 3.0 | 0 | 2 | 0 |
+| 3.5 | 0 | **0 -- missed** | 0 |
 
-The usable range is 1.6-3.0, and that margin -- not the default constant -- is
+The usable window is 1.8-3.0, and that window -- not the default constant -- is
 the reason to believe any of this.
 
-Note what happened to it: on two frames the margin looked like 1.4-3.0. Adding a
-third frame that carries specular artifacts moved the lower bound up. Each new
-imaging condition has narrowed it, so treat the current bound as an upper
-estimate of how much slack there really is.
+Watch how it has moved. On two frames it looked like 1.4-3.0. Adding chip3, which
+carries specular artifacts, lifted the floor to 1.6. Swapping in SAM, whose
+boundaries include the crystal tips the threshold mask truncated, lifted it to
+1.8 -- leaving the old default sitting exactly on the edge. **Every time more
+information has arrived, the slack has shrunk.** The earlier figures were not
+wrong so much as measured against too little. Treat this as an upper bound.
 
 ## Measured facts
 
@@ -106,13 +109,21 @@ Re-measure before trusting any of these on a new batch.
 ## Pipeline
 
 1. `normalize.py` -- take green; flag clipped pixels as unreadable.
-2. `segment.py` -- Otsu on the smoothed, illumination-flattened frame. The
-   **weakest link**: crystal/background contrast is ~1 sigma per pixel, so the
-   boundary is approximate. The real fix is registering the GDS template, which
-   says exactly where every shape should be.
+2. `sam_segment.py` -- SAM (Segment Anything), zero-shot. No training, no labels.
+   It separates touching crystals, which Otsu and watershed both cannot, and
+   sizes seq3941's two identical slivers to within 0.3% against 11% for
+   thresholding. SAM has no concept of "crystal", so this module selects among
+   its masks on four physical criteria: area (rejects the ~98% background mask),
+   elongation >= 2.5 (rejects chip3's 248x191 specular blob at 1.3), brightness
+   above the frame median (rejects the dark off-sample bands), and a max frame
+   fraction.
 3. `fractures.py` -- TV denoise, white top-hat, then keep only connected
    elongated runs.
 4. `viz.py` -- render the verdict for eyeball audit.
+
+`segment.py` is the previous threshold pipeline, still selectable via
+`Config(use_sam=False)`. It needs no 358MB checkpoint, so it is a real fallback
+rather than dead code -- but it merges touching crystals and truncates tips.
 
 ## Traps worth remembering
 
@@ -151,8 +162,10 @@ Each of these cost real time and will bite again:
   not proof -- and every frame added so far has found a new failure mode.
 - **The brightness cap is set against one artifact and three fractures.** A
   genuinely bright fracture would be rejected by it.
-- **Crystals that touch are not separated.** The GDS is a compact tiling, so
-  neighbouring shapes are adjacent; on chip3 the mask bleeds into the
-  neighbour. Watershed was tried and does not cut it -- there is no gradient
-  ridge between them. Template registration is the real answer.
-- **Segmentation is approximate** and untested on frames with many shapes.
+- **SAM runs on CPU**, minutes per frame rather than seconds: its automatic mask
+  generator builds float64 point tensors and Apple's MPS has no float64. At 50
+  frames that is an hour-plus.
+- **The brightness rule assumes the frame median is background.** True here
+  (crystals cover 15-30%), but it inverts on a zoomed-out mosaic packed with
+  crystals -- exactly the eventual whole-chip goal.
+- **Segmentation untested on frames with many shapes.**

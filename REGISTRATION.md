@@ -161,3 +161,30 @@ With the pose known, every crystal's outline is known by construction:
 - The affine fit and overlays were produced inline; see this file's step 6.
 Reference overlays in `out/`: `seq4057_gds_flipfit.png` (14 px lock),
 `seq4057_gds_affine.png` (final, 10 px).
+
+
+## Automated registration by corner matching (in progress)
+
+Replacing hand-marks with auto-detection. The working idea (user's): match
+detected shape CORNERS to a database of the GDS shapes, not centroids. Each GDS
+shape's vertex geometry is a fingerprint (with scale known, absolute size
+separates the self-similar 40x20 vs 60x30 triangles), so aligning >=3 corners of
+one clean detection to its GDS twin fixes identity + rotation + position from a
+single match. `experiments/shape_match.py`.
+
+VALIDATED: on seq4045, the one shape that corner-matched (a triangle, ~20px
+residual) was placed exactly on its real crystal -- identity, angle, position all
+correct from corners alone. Centroid matching never achieved this.
+
+BOTTLENECK: detection quality. Both SAM and a bright-threshold detector gave only
+ONE clean corner-match on seq4045 (huge, overexposed, touching crystals -> rough
+polygons). One match anchors the pose but it drifts far from the anchor; locking
+the full affine (rotation + ~6% anisotropy + translation) needs >=2-3 clean
+matches SPREAD across the frame, then a consensus vote (which also resolves the
+self-similar-shape aliasing) + affine refine. The pipeline for that is in
+shape_match.py; it just needs enough clean detections to feed it.
+
+Next: better shape detection that separates touching crystals and extracts clean
+corners; and/or test on cleaner (sliver-style) frames where more shapes detect
+cleanly. Corner matching is the right primitive -- proven -- it is starved of
+clean inputs on the hardest frames.

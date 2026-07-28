@@ -138,12 +138,120 @@ With the pose known, every crystal's outline is known by construction:
   exact outlines from the template boxes -- it improves thin boundaries but does
   NOT detect; the template supplies the location.
 
+### Automatic anchor selection (DONE — no hand-picking)
+
+`experiments/auto_anchor.py`. The anchor identity is chosen automatically per
+frame by using the whole tiling as the disambiguator:
+1. detect bright polygons; enumerate every (detection -> same-vertex GDS shape)
+   candidate; anchor-fit each (flipped GDS, PROPER rotation), keep residual < 25px.
+2. coarse-rank by GLOBAL edge score (mean gradient ridge under all in-frame
+   template edges).
+3. refine the top-K with the edge-snap anisotropy step; rank by REFINED edge
+   residual. The correct anchor settles tight (6px); the wrong mirror partner
+   fights the edges (9.5px).
+4. pick the min-residual candidate; report the margin to the runner-up as a
+   confidence and flag thin margins (< 25% relative) for a quick eyeball.
+
+Validated on seq4045: auto-selects det#3 -> GDS#10 (the user-confirmed anchor),
+6.0px / 2.8% aniso, 37% confidence margin. Renders identically to the manual fit.
+The near-translational tiling symmetry means confidence can be thin on some
+frames -- hence the flag, not a silent pick.
+
+**Detector: loose SAM, not find_crystals.** The anchor detector is SAM with only
+a minimal area filter (`edge_anisotropy.detect_sam`, mirroring
+`sam_segment_only.py`): keep every mask 8k px..0.70*frame, drop background, no
+elongation/brightness filter. `sam_segment.find_crystals`' material-crystal
+filters strip out exactly the clean triangles that make the best anchors (on
+seq4046 it left 6 shapes, no triangle; loose SAM gives ~22 incl. the center
+triangles). Feed ALL loosely-segmented shapes to corner-matching and let the
+global-tiling score select; non-crystal masks just fail CAND_RES_TOL. A fixed
+BRIGHT-THRESHOLD detector is NOT exposure-robust (worked on seq4045, found
+nothing on seq4046) -- `detect_bright` is kept only for reference.
+
+Validated on seq4046 (a messy frame: heavy debris, off-sample bands): fully
+automatic, det#7 -> GDS#34, 6.7px / 3.3% aniso, 35% margin. User-confirmed
+"perfect" (2026-07-16). Note the bright distractor crystals ("meant to be
+ignored") are correctly NOT covered -- the template lands on the tiling sites
+(incl. faint ones), not the bright contamination.
+
+### Standard pipeline: `experiments/sam_register.py` (DONE)
+
+The full refinement chain, folded into one module. Every step earns its place on
+a frame that broke the simpler version (seq4045 clean, seq4046 messy, seq4050
+huge+strained). `register(green, cache_key)` returns a per-shape affine for every
+GDS polygon; the registered outline of crystal i is `fpolys[i] @ A_i.T + b_i`.
+
+1. **Detect** — loose SAM (`ea.sam_shapes`): masks + corner polygons, area filter
+   only. See the loose-SAM note above.
+2. **Anchor** — corner-match every detection to every same-vertex GDS shape
+   (x-flipped, PROPER rotation, fixed 13.7), refine with the global ICP, and rank
+   by **MASK-COVERAGE** (fraction of SAM-detected crystals the template lands on),
+   NOT edge/corner residual. Structure:
+   - **Tier 1: triangles only, single anchor.** Reliable and fast; keeps the good
+     frames (seq4045/46/50) exactly.
+   - **Tier 2 (only if tier-1 mask-coverage < ~30%): all shapes + multishape.**
+     seq4057's triangles are faint/SAM-invisible, so it has no clean triangle
+     anchor; the visible LENS crystals (hexagons/quads) are fit *together* into a
+     multi-shape joint anchor (like the manual tri+quad 7-point fit), which pins
+     the pose and prevents over-warp. Keep tier-2 only if it covers more crystals.
+   - Within a tier: coarse-rank seeds by raw-pose mask-coverage, refine the top
+     few, then **mask-coverage GATES, edge residual SELECTS** (residual separates
+     mirror partners at equal coverage), strain must be plausible.
+   - **Why mask-coverage, not edge-coverage/residual:** on the near-periodic
+     tiling a one-cell SHIFT keeps a low residual (seq4050 bogus quad 3.1px) and
+     an off-frame-PARKED pose games *edge*-coverage (seq4057: 26% edge-cov but
+     only 4/36 shapes in-frame). Mask-coverage — did the template land on the
+     detected crystals — can't be gamed either way (8% for those wrong poses,
+     32-83% for the correct ones).
+3. **Global refine** — polarity-aware ICP of all template edges to the SAM
+   boundaries, one affine, no anchor pin (windows 100->12 px so a ~70px base
+   offset is reachable). Captures the frame-wide anisotropic strain. **Scale and
+   anisotropy are clamped every iteration** (scale near the 13.7 px/um hardware
+   constant, strain <=8%): a fit must not grow the template off-frame or over-warp
+   to fake coverage. Without this a wrong anchor scaled the template up so few
+   shapes stayed in-frame and gamed coverage (seq4057).
+4. **Per-shape refine** — each shape fits its own small affine (polarity-aware
+   mini-ICP) to absorb LOCAL non-affine strain (seq4050 bowtie: top-tri base
+   503->564 px onto the real edge at 571; the two bases separate onto their own
+   crystals). **Heavily guarded** — unguarded it over-fits faint crystals and
+   flips/drifts them onto noise (seq4045 regressed badly). A per-shape fit is
+   kept only if it does NOT flip, rotates <8 deg, scales within 0.7..1.4x,
+   translates <half the shape size, AND improves that shape's edge coverage;
+   else the shape keeps the global affine. So a clean frame where the global fit
+   is already perfect is left untouched, while genuine local strain is still
+   fixed. **The per-shape fit uses plain least-squares, NO residual trimming:** a
+   genuinely off edge (the seq4050 bowtie base, ~48px from its true crystal edge)
+   is the LARGEST residual, so trimming would discard exactly the correspondences
+   that must move the shape -- leaving the base collapsed on its neighbour.
+   Polarity + the coverage-improve accept test are what reject noise here, not
+   trimming. (This regressed once when the per-shape fit was folded onto the
+   trimmed global fitter; keep it untrimmed.)
+
+**Polarity-aware matching** (used in 3 and 4): a template edge only matches an
+image boundary with the crystal (SAM mask) on the edge's INTERIOR side, from the
+polygon winding. Without it, adjacent crystals' near-parallel edges swap and two
+triangle bases collapse onto one edge. Probe 7 px along the inward normal;
+require interior=crystal, exterior=background.
+
+The pipeline reports confidence and flags a frame for a quick eyeball when the
+residual margin over the runner-up is thin (<15%) OR the winning pose's
+**absolute mask-coverage is below 15%** (too few crystals covered -> wrong pose).
+
+**Status: all four frames auto-register correctly, no hand marks.** seq4045 68%,
+seq4046 32%, seq4050 83%, seq4057 62% mask-coverage (manual seq4057 was 69%).
+seq4057 -- faint SAM-invisible triangles + heavy circular artifacts -- was the
+frame that forced the mask-coverage / scale-clamp / multishape / tiered design;
+it now registers via the tier-2 multishape anchor on its visible lens crystals.
+
 ## Open items for later
-- **Per-frame automation.** This frame was solved with user marks. For unattended
-  runs each frame needs an initial anchor. Best: microscope **stage coordinates**
-  (if recorded) map the frame to the tiling directly, zero ambiguity, no marks.
-  Otherwise: detect the bright crystals as fiducials (they sit at known GDS
-  sites) — needs the anisotropy known first.
+- **Per-frame automation.** DONE via `sam_register.py` (above) — no marks, no
+  hand-picking, works clean->messy->strained. Remaining nicety: microscope
+  **stage coordinates** (if recorded) would map the frame to the tiling directly
+  and remove even the confidence-flag ambiguity.
+- **Design/scale per sample.** The pipeline assumes tas_v3_design at 13.7 px/um.
+  If a frame's shapes don't match at any consistent scale it is a different
+  design (angles vary between samples) and needs its own GDS -- detect this
+  (all-triangle free-scale fits disagree) and pick the design from metadata.
 - **Anisotropy per frame.** 4.8% strain may vary between chips/frames; measure it
   per frame from >=3 spread anchors, or treat as a stable peel-process constant.
 - **Design selection.** Designs vary between samples; the correct GDS must be
@@ -175,6 +283,54 @@ single match. `experiments/shape_match.py`.
 VALIDATED: on seq4045, the one shape that corner-matched (a triangle, ~20px
 residual) was placed exactly on its real crystal -- identity, angle, position all
 correct from corners alone. Centroid matching never achieved this.
+
+### Handedness: RESOLVED (canonical flipped orientation, proper rotation only)
+
+A long detour: fitting the symmetric anchor triangle with a *free* reflection
+(`R = U@Vt`, det unconstrained) flip-flopped the whole template unpredictably.
+Root cause: an isoceles triangle scores ~10px in MULTIPLE mirror orientations,
+so a free fit returns an arbitrary handedness. Composing hacks (reflect-about-
+the-anchor) only made the pose un-reproducible.
+
+The fix (user's diagnosis): keep the GDS in ONE canonical orientation while
+fitting -- **x-flipped**, `F = diag(1,-1)` applied first (the tape mirror) --
+and fit as a **proper rotation, det=+1**. Because the pattern is flipped, the
+triangle that actually lands on a detection is the **mirror partner** of the one
+you'd naively pick: on seq4045, GDS#11's partner **GDS#10** fits det#3 at 10px
+as a proper rotation. Transform is then a fully determined `flip-x -> rotate ->
+scale` with NO reflection to choose. Confirmed correct by the user (2026-07-16).
+
+Rule for all future frames: never fit a free reflection; flip the GDS across x
+once, fit the mirror-partner shape with det forced to +1. Encoded in
+`shape_match.py::match_corners`.
+
+### Far-field from ONE anchor by edge-snapping (no 2nd detection needed)
+
+A single symmetric triangle anchor cannot supply a 2nd asymmetric shape to lock
+the anisotropy, and detecting a clean quad on the hard frames failed. The fix
+(user's idea): once one crystal is registered, the anchor *predicts* where every
+other crystal's edges land to within the few-% tape strain. So don't detect a
+2nd shape -- **snap predicted GDS edges to real image edges and refit the affine.**
+
+Recipe (`experiments/edge_anisotropy.py`, validated on seq4045):
+1. Anchor: flipped GDS#10 -> det#3, proper rotation, uniform scale (10px).
+2. Edge map: gradient magnitude of lightly-smoothed green (Sobel on gaussian 1.2),
+   normalized by its 99th pct.
+3. For every GDS edge, sample points ~22px apart; at each, search PERPENDICULAR
+   to the edge (+/- window) for the max gradient ridge. Accept if response > 0.12.
+   These (gds_pt -> found_img_pt) pairs are edge correspondences across the frame.
+4. Refit the 6-param affine over all correspondences, with the anchor's 3 corners
+   replicated (weight 8) so the solution stays pinned to the confirmed crystal.
+   Trim the worst 25% of edge residuals and refit (robust to bad snaps).
+5. Iterate windows 60->45->35->28 px (coarse-to-fine).
+
+Result on seq4045: converged to **2.8% anisotropy** (14.08/13.69 px/um), median
+edge residual 17->6 px, anchor held ~12px. The faint ~0.9-sigma central crystals
+(invisible to any detector) are correctly located by the template. User-confirmed
+"perfect". This is the standard far-field step after the anchor fit; it replaces
+the need for multiple clean detections. Snap to EDGES (perpendicular ridge), not
+blobs. The template still only says *where to look* -- each crystal needs its own
+border check before its occupancy counts.
 
 BOTTLENECK: detection quality. Both SAM and a bright-threshold detector gave only
 ONE clean corner-match on seq4045 (huge, overexposed, touching crystals -> rough

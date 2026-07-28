@@ -2,4 +2,12 @@ numpy
 scipy
 scikit-image
 pillow
+opencv-python
+gdstk
 pytest
+
+# NOT pinned here (install separately, see below):
+#  - torch / torchvision: on the DGX use the CUDA build from the NVIDIA PyTorch
+#    container (nvcr.io/nvidia/pytorch) or `pip install torch` matched to the box's
+#    CUDA. Do NOT rely on a plain pip torch on a GPU machine -- you may get a CPU build.
+#  - segment-anything (SAM):  pip install git+https://github.com/facebookresearch/segment-anything.git

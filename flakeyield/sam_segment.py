@@ -29,9 +29,25 @@ from skimage.measure import regionprops
 DEFAULT_CHECKPOINT = Path(__file__).resolve().parent.parent / "models" / "sam_vit_b.pth"
 MODEL_TYPE = "vit_b"
 
-# SAM runs on CPU: SamAutomaticMaskGenerator builds float64 point tensors and
-# Apple's MPS backend has no float64.
-DEVICE = "cpu"
+# Device selection. CUDA (a DGX/GPU box) is a huge win -- SAM drops from ~1-2 min
+# to a few seconds per frame -- so use it when available. We deliberately do NOT
+# use Apple's MPS: SamAutomaticMaskGenerator builds float64 point tensors and MPS
+# has no float64, so on a Mac we fall back to CPU. Override with FLAKE_DEVICE.
+def _pick_device():
+    import os
+    forced = os.environ.get("FLAKE_DEVICE")
+    if forced:
+        return forced
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+DEVICE = _pick_device()
 
 # Sampling density of the automatic mask generator. 16 is enough for objects
 # this large and keeps CPU runtime tolerable.

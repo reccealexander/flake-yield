@@ -1,10 +1,39 @@
+# Python
 __pycache__/
 *.pyc
-out/
-*.csv
+.mypy_cache/
+.pytest_cache/
+
+# OS and editor junk
+.DS_Store
+*.bak
+
+# Claude Code worktrees (nested git checkouts)
+.claude/
+
+# Third-party weights, re-downloadable (sam_vit_b.pth, 358 MB)
 models/
 
-# large model checkpoints
-models/
-# session experiment outputs (regenerable)
-out/
+# Session outputs: derived, regenerable. The one exception is the deployed
+# wrinkle checkpoint -- every published count refers to that exact instrument,
+# so it is tracked. Note out/* rather than out/: git cannot re-include a file
+# whose parent directory is itself excluded.
+out/*
+!out/wrinkle_native_prod.pt
+wrinkle_detection/out/*
+!wrinkle_detection/out/wrinkle_native_prod.pt
+!wrinkle_detection/out/wrinkle_calibration.json
+
+# Derived crystal crops and registration caches: rebuilt by
+# experiments/build_crystal_db.py from the raw frames + GDS pose.
+# The hand-made labels next to them (manifest.json, *_points*.json,
+# crystal_labels.json, judge_verdicts.json) ARE tracked -- they are not
+# regenerable.
+crystal_db/crystals/
+crystal_db/by_gds/
+crystal_db/reg_cache/
+crystal_db/gds_gallery.html
+wrinkle_detection/crystal_db/crystals/
+
+# SAM masks and crystal-selector feature cache (~500 MB, regenerable)
+cache/

@@ -4,7 +4,6 @@ scikit-image
 pillow
 opencv-python
 gdstk
-pytest
 
 # NOT pinned here (install separately, see below):
 #  - torch / torchvision: on the DGX use the CUDA build from the NVIDIA PyTorch

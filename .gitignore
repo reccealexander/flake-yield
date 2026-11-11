@@ -37,3 +37,7 @@ wrinkle_detection/crystal_db/crystals/
 
 # SAM masks and crystal-selector feature cache (~500 MB, regenerable)
 cache/
+
+# Research trail, superseded experiments and side projects: kept on this
+# machine only, never pushed. Paths inside mirror where each file used to live.
+local_archive/

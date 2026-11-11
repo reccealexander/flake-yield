@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Headless batch runner -- process a folder or glob of images through the full
 pipeline (SAM -> registration -> crystal extraction). No GUI, so it runs over SSH
-on the DGX. Outputs land in the app's folders (out/sam_cache, out/pipeline_final,
-crystal_db), so you can rsync those back and browse them in app.py locally.
+on the DGX. Outputs land in out/sam_cache, out/pipeline_final and crystal_db, so
+you can rsync those back and browse them locally.
 
     python batch.py flake_imgs/new_716
     python batch.py 'flake_imgs/new/*.jpg' --workers 4

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Headless processing pipeline, shared by app.py (GUI) and batch.py (CLI).
+"""Headless processing pipeline -- the core batch.py runs on every frame.
 
 One image in -> SAM masks + registration overlay + extracted crystals, written to
 the project's output folders. No GUI dependencies, so it runs over SSH / in a
-container on the DGX exactly as it does inside the desktop app.
+container on the DGX exactly as it does on a desktop.
 """
 
 import pickle
@@ -24,9 +24,9 @@ import build_crystal_db as bdb        # noqa: E402
 IMG_DIR = ROOT / "flake_imgs" / "new"
 OUT = ROOT / "out"
 SAMCACHE = OUT / "sam_cache"
-PIPELINE_FINAL = OUT / "pipeline_final"          # clean registration results shown in the app
+PIPELINE_FINAL = OUT / "pipeline_final"          # clean registration overlays, one per frame
 CRYSTALS = ROOT / "crystal_db" / "crystals"
-THUMBS = OUT / "thumb_cache"                      # small disk thumbnails for the app galleries
+THUMBS = OUT / "thumb_cache"                      # small disk thumbnails for browsing results
 
 PALETTE = np.array([
     [230, 60, 60], [60, 160, 240], [90, 210, 90], [250, 170, 40],

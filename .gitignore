@@ -31,6 +31,12 @@ flake_imgs/
 gds/
 crystal_db/manifest.json
 
+# Local-only tools, kept in place so they keep working here: the desktop
+# gallery app, and the optional ML crystal selector build_crystal_db.py can load.
+app.py
+crystal_selector.py
+crystal_selector_hybrid.py
+
 # Derived crystal crops and registration caches: rebuilt by
 # experiments/build_crystal_db.py from the raw frames + GDS pose.
 # The hand-clicked wrinkle labels next to them (*_points*.json) ARE tracked --

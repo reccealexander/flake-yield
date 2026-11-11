@@ -136,8 +136,9 @@ DEFAULT_FRAMES = ["seq4045", "seq4046", "seq4050", "seq4057",
 # colour misses the rules drop, without touching rule-admitted decisions. It never
 # rescues off-frame slivers or bright/thick distractors. Rescued crystals are
 # flagged ml_rescued + needs_review. Set ML_RESCUE=False to fully disable (the
-# pipeline then behaves exactly as before). Degrades gracefully if torch or the
-# checkpoint is absent.
+# pipeline then behaves exactly as before). Degrades gracefully if torch,
+# crystal_selector.py or the checkpoint is absent -- none of the selector code or
+# weights is in this repository, so by default the layer is off.
 ML_RESCUE = True
 ML_RESCUE_REASONS = ("too-dim", "too-green", "off-colour", "nonuniform")
 _ML = {"model": None, "tried": False}

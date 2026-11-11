@@ -28,8 +28,8 @@ The full walk-through of every stage is `yield_calculation_doc.pdf`.
    accuracy n=113, MAE 0.98, bias -0.49. Details, retraining and verification:
    `wrinkle_detection/README.md`.
 
-`pipeline.py` runs stages 1-3 on one image with no GUI imports. `app.py` and
-`batch.py` both call it.
+`pipeline.py` runs stages 1-3 on one image with no GUI imports; `batch.py` runs
+it over many.
 
 ## Running it
 
@@ -45,13 +45,8 @@ Two inputs are not in this repository and have to be supplied locally:
   the wrinkle signal lives at 3-8 grey levels, and a lossy re-encode destroys
   it. Processed frames are kept in `flake_imgs/new/`.
 
-Desktop app -- open one or many frames, browse SAM / registration / crystals /
-wrinkles galleries:
-
-    python app.py
-
-Headless, over a folder or glob (e.g. on the DGX; rsync `out/` and `crystal_db/`
-back and browse them in the app):
+Over a folder or glob (headless, so it also runs on the DGX; rsync `out/` and
+`crystal_db/` back to browse the results):
 
     python batch.py path/to/frames/
     python batch.py 'path/to/frames/*.jpg' --workers 4
@@ -63,10 +58,9 @@ minutes); Apple MPS is deliberately not used. `FLAKE_DEVICE` overrides.
 
 | path | what |
 |---|---|
-| `pipeline.py`, `app.py`, `batch.py` | the pipeline core and its two front ends |
+| `pipeline.py`, `batch.py` | the pipeline core and its batch runner |
 | `flakeyield/sam_segment.py` | SAM segmentation |
 | `experiments/` | registration and crystal extraction (the name is historical) |
-| `crystal_selector.py`, `crystal_selector_hybrid.py` | optional ML recall-assist for extraction -- active only if `out/crystal_selector.pt` exists, which it does not by default |
 | `wrinkle_detection/` | the deployed wrinkle counter |
 | `crystal_db/` | hand-clicked wrinkle labels; the pipeline writes the crystal crops and `manifest.json` here |
 | `out/wrinkle_native_prod.pt` | the deployed wrinkle checkpoint |

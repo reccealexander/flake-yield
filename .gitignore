@@ -22,13 +22,19 @@ out/*
 !out/wrinkle_native_prod.pt
 wrinkle_detection/out/*
 !wrinkle_detection/out/wrinkle_native_prod.pt
-!wrinkle_detection/out/wrinkle_calibration.json
+
+# Lab data, kept local and never pushed: the raw microscope frames, the GDS
+# design with its per-shape result tables, and the crystal manifest (which
+# carries each crystal's GDS polygon). The pipeline reads all three from these
+# paths; build_crystal_db.py starts a fresh manifest if there is none.
+flake_imgs/
+gds/
+crystal_db/manifest.json
 
 # Derived crystal crops and registration caches: rebuilt by
 # experiments/build_crystal_db.py from the raw frames + GDS pose.
-# The hand-made labels next to them (manifest.json, *_points*.json,
-# crystal_labels.json, judge_verdicts.json) ARE tracked -- they are not
-# regenerable.
+# The hand-clicked wrinkle labels next to them (*_points*.json) ARE tracked --
+# they are not regenerable.
 crystal_db/crystals/
 crystal_db/by_gds/
 crystal_db/reg_cache/

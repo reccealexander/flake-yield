@@ -37,6 +37,14 @@ The full walk-through of every stage is `yield_calculation_doc.pdf`.
     curl -L -o models/sam_vit_b.pth \
         https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
 
+Two inputs are not in this repository and have to be supplied locally:
+
+- **The GDS design**, at `gds/tas_v3_design.gds` (or point `FLAKE_GDS` at it).
+  Registration cannot run without it.
+- **The microscope frames.** Use them as captured and do not re-save them:
+  the wrinkle signal lives at 3-8 grey levels, and a lossy re-encode destroys
+  it. Processed frames are kept in `flake_imgs/new/`.
+
 Desktop app -- open one or many frames, browse SAM / registration / crystals /
 wrinkles galleries:
 
@@ -45,17 +53,11 @@ wrinkles galleries:
 Headless, over a folder or glob (e.g. on the DGX; rsync `out/` and `crystal_db/`
 back and browse them in the app):
 
-    python batch.py flake_imgs/new_716
-    python batch.py 'flake_imgs/new/*.jpg' --workers 4
-
-Wrinkle counts for every stored crystal (fills the app's Wrinkles tab and the
-wrinkle columns of `gds/gds_shapes*.csv`):
-
-    python wrinkle_detection/add_wrinkle_counts.py
+    python batch.py path/to/frames/
+    python batch.py 'path/to/frames/*.jpg' --workers 4
 
 SAM uses CUDA when available (seconds per frame) and otherwise the CPU (1-2
 minutes); Apple MPS is deliberately not used. `FLAKE_DEVICE` overrides.
-`FLAKE_GDS` points at a different design file than `gds/tas_v3_design.gds`.
 
 ## Layout
 
@@ -65,14 +67,12 @@ minutes); Apple MPS is deliberately not used. `FLAKE_DEVICE` overrides.
 | `flakeyield/sam_segment.py` | SAM segmentation |
 | `experiments/` | registration and crystal extraction (the name is historical) |
 | `crystal_selector.py`, `crystal_selector_hybrid.py` | optional ML recall-assist for extraction -- active only if `out/crystal_selector.pt` exists, which it does not by default |
-| `wrinkle_detection/` | the deployed wrinkle counter, as a self-contained package |
-| `gds/` | the GDS design and the per-shape result tables |
-| `crystal_db/` | crystal manifest, wrinkle labels, reserved test-frame ranges |
-| `flake_imgs/` | the raw frames, as captured. Do not re-save them: the wrinkle signal lives at 3-8 grey levels |
+| `wrinkle_detection/` | the deployed wrinkle counter |
+| `crystal_db/` | hand-clicked wrinkle labels; the pipeline writes the crystal crops and `manifest.json` here |
 | `out/wrinkle_native_prod.pt` | the deployed wrinkle checkpoint |
 
-Everything else under `out/`, `cache/` and `crystal_db/crystals/` is regenerated
-by the commands above.
+Everything under `out/`, `cache/` and `crystal_db/` other than those files is
+written by the pipeline and is not tracked.
 
 ## What the numbers do and do not mean
 

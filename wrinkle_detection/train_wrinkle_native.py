@@ -74,11 +74,6 @@ def parse_args():
     p.add_argument("--crop-split", action="store_true",
                    help="production-style crop-level split instead of "
                         "frame-grouped (full coverage; holdout-eval only)")
-    p.add_argument("--stratified-split", action="store_true",
-                   help="frame-grouped split stratified by imaging-condition "
-                        "family (out/frame_conditions.csv; run "
-                        "frame_conditions.py first): per-family coverage "
-                        "with honest validation")
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--eval-every", type=int, default=3,
                    help="run full tiled val inference every N epochs")
@@ -219,18 +214,11 @@ def main():
         print("Confirmed crops: %d total, %d dropped as holdout (seq>=%d), %d usable"
               % (len(all_items), n_hold, HOLDOUT_MIN_SEQ, len(items)))
 
-    if args.stratified_split:
-        from frame_conditions import load_clusters, stratified_frame_split
-        clusters = load_clusters()
-        train_items, val_items, train_frames, val_frames = \
-            stratified_frame_split(items, args.val_frac, args.seed, clusters)
-        mode = "STRATIFIED frame-grouped (condition families)"
-    else:
-        split_fn = crop_level_split if args.crop_split else frame_grouped_split
-        train_items, val_items, train_frames, val_frames = split_fn(
-            items, args.val_frac, args.seed)
-        mode = ("CROP-level (production-style)" if args.crop_split
-                else "frame-grouped")
+    split_fn = crop_level_split if args.crop_split else frame_grouped_split
+    train_items, val_items, train_frames, val_frames = split_fn(
+        items, args.val_frac, args.seed)
+    mode = ("CROP-level (production-style)" if args.crop_split
+            else "frame-grouped")
     print("Split mode: %s" % mode)
     print("Frame-grouped split: %d train crops / %d val crops "
           "(%d train frames / %d val frames)"

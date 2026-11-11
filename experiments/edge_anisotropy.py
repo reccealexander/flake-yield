@@ -36,9 +36,9 @@ FRAME = Path(__file__).resolve().parent.parent / "flake_imgs" / "new" / "seq4045
 
 
 def _find_gds():
-    """Locate the GDS design, portably. Priority: FLAKE_GDS env var; then a copy
-    bundled in the repo (gds/tas_v3_design.gds) so it travels with an rsync to the
-    DGX; then the original ~/Downloads location for back-compat on this Mac."""
+    """Locate the GDS design, portably. Priority: FLAKE_GDS env var; then
+    gds/tas_v3_design.gds beside the code (not in git -- copy it there so it
+    travels with an rsync to the DGX); then ~/Downloads for back-compat."""
     import os
     env = os.environ.get("FLAKE_GDS")
     if env:
